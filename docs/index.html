@@ -105,6 +105,7 @@
   <div><label for="tag">Genre</label><select id="tag"><option value="">Any genre</option></select></div>
   <div class="btns">
     <button id="search">Search</button>
+    <button id="clear" title="Reset the name and genre (the country stays)">Clear</button>
     <button id="favs">My favorites</button>
   </div>
 </div>
@@ -215,7 +216,7 @@ async function runSearch() {
     // an https page can't play plain http streams, so hide them there
     if (location.protocol === "https:") list = list.filter(s => s.url.startsWith("https:"));
     if (mine !== searchSeq) return;
-    showList(list, list.length ? list.length + " stations, most popular first. Click one to play." : "Nothing found.");
+    showList(list, list.length ? list.length + (list.length === 1 ? " station" : " stations") + ", most popular first. Click one to play." : "Nothing found.");
   } catch (e) {
     if (mine === searchSeq) $("listStatus").textContent = "Search failed: " + e.message;
   }
@@ -496,6 +497,7 @@ requestAnimationFrame(frame);
 $("search").onclick = runSearch;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
 $("tag").onchange = runSearch;
+$("clear").onclick = () => { $("q").value = ""; $("tag").value = ""; runSearch(); $("q").focus(); };
 $("country").onchange = runSearch;
 document.addEventListener("keydown", e => {
   if (e.code === "Space" && !/INPUT|SELECT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
