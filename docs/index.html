@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stillwave</title>
+<style>
+  :root {
+    --bg: #1b1f27; --panel: #232933; --field: #262c37; --line: #3a4252;
+    --text: #ffffff; --soft: #cfe0f2; --mute: #9fb3c8; --dim: #6b7a8c;
+    --hover: #2d3646; --sel: #2f6fb5; --accent: #5aa9ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif;
+         display: flex; flex-direction: column; padding: 16px; gap: 12px; max-width: 1100px; margin: 0 auto; }
+  button, input, select { font: inherit; color: var(--text); background: var(--field); border: 1px solid var(--line);
+                          border-radius: 4px; padding: 6px 12px; }
+  button { cursor: pointer; }
+  button:hover { background: var(--hover); }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input, select { padding: 5px 8px; width: 100%; }
+
+  /* now playing */
+  #now { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  #logo { width: 96px; height: 96px; border-radius: 6px; background: var(--field) center/cover; flex: none;
+          display: grid; place-items: center; font-size: 34px; color: var(--dim); overflow: hidden; }
+  #text { flex: 1; min-width: 200px; }
+  #name { font-size: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #sub { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status { color: var(--dim); font-size: 12px; min-height: 17px; }
+  #transport { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #vol { width: 110px; padding: 0; accent-color: var(--accent); }
+  #fav.on { color: #ffd34d; }
+
+  /* spectrum */
+  #spec { height: 54px; border-radius: 6px; background: #171b22; position: relative; cursor: pointer; flex: none; }
+  #spec canvas { width: 100%; height: 100%; display: block; }
+  #specNote { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 12px; pointer-events: none; }
+
+  /* filters */
+  #filters { display: grid; grid-template-columns: 1.4fr 1.4fr 1fr auto; gap: 8px; align-items: end; }
+  #filters label { color: var(--mute); font-size: 12px; display: block; }
+  #filters .btns { display: flex; gap: 6px; }
+
+  /* results */
+  #results { flex: 1; min-height: 160px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th:nth-child(1) { width: 32px; } th:nth-child(2) { width: 28%; } th:nth-child(3) { width: 13%; }
+  th:nth-child(4) { width: 24%; } th:nth-child(5) { width: 11%; }
+  @media (max-width: 720px) { th:nth-child(2) { width: auto; } th:nth-child(6) { width: 38%; } }
+  th { position: sticky; top: 0; background: var(--panel); color: var(--mute); text-align: left; font-weight: 400;
+       padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 12px; }
+  td { padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: var(--hover); }
+  tr.row.sel { background: var(--sel); }
+  td.star { width: 28px; text-align: center; color: var(--dim); max-width: 28px; }
+  td.star:hover { color: #ffd34d; }
+  td.star.on { color: #ffd34d; }
+  #foot { display: flex; justify-content: space-between; gap: 12px; align-items: center; color: var(--dim); font-size: 12px; flex-wrap: wrap; }
+
+  dialog { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 16px; width: min(480px, 92vw); }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  dialog label { display: block; color: var(--mute); font-size: 12px; margin: 8px 0 2px; }
+  dialog .row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 14px; }
+  #addMsg { color: #ffa07a; margin-top: 8px; min-height: 18px; }
+
+  @media (max-width: 720px) {
+    body { padding: 12px; }
+    #filters { grid-template-columns: 1fr 1fr; }
+    #filters .btns { grid-column: 1 / -1; }
+    .hide-s { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="now">
+  <div id="logo">♪</div>
+  <div id="text">
+    <div id="name">Pick a station</div>
+    <div id="sub"></div>
+    <div id="status"></div>
+  </div>
+  <div id="transport">
+    <button id="prev" title="Previous station in the list">Prev</button>
+    <button id="play" style="min-width:64px" title="Play / pause (Space)">Play</button>
+    <button id="next" title="Next station in the list">Next</button>
+    <button id="rand" title="Play a random station from the list below">Random</button>
+    <button id="fav" title="Add the playing station to your favorites">☆ Favorite</button>
+    <span style="color:var(--mute);margin-left:6px">Vol</span>
+    <input id="vol" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="Volume">
+  </div>
+</div>
+
+<div id="spec" title="Click to change the style">
+  <canvas id="canvas"></canvas>
+  <div id="specNote"></div>
+</div>
+
+<div id="filters">
+  <div><label for="q">Name</label><input id="q" placeholder="e.g. jazz, BBC, Radio Paradise"></div>
+  <div><label for="country">Country</label><select id="country"><option value="">Any country</option></select></div>
+  <div><label for="tag">Genre</label><input id="tag" placeholder="e.g. ambient"></div>
+  <div class="btns">
+    <button id="search">Search</button>
+    <button id="favs">My favorites</button>
+  </div>
+</div>
+
+<div id="results">
+  <table>
+    <thead><tr><th></th><th>Station</th><th class="hide-s">State</th><th class="hide-s">Genres</th><th class="hide-s">Stream</th><th>Country</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<div id="foot">
+  <span id="listStatus"></span>
+  <span><button id="add">+ Add station...</button></span>
+</div>
+
+<dialog id="addDlg">
+  <form method="dialog" id="addForm">
+    <strong>Add a station</strong>
+    <label for="addUrl">Stream link (or a .pls / .m3u playlist link)</label>
+    <input id="addUrl" placeholder="https://...">
+    <label for="addName">Name (optional)</label>
+    <input id="addName">
+    <div id="addMsg"></div>
+    <div class="row"><button type="button" id="addGo">Add</button><button value="cancel">Cancel</button></div>
+  </form>
+</dialog>
+
+<audio id="aViz" crossorigin="anonymous" preload="none"></audio>
+<audio id="aPlain" preload="none"></audio>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const API = "https://de1.api.radio-browser.info/json";
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("stillwave." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("stillwave." + k, JSON.stringify(v)); } catch {} },
+};
+
+// ---------- state ----------
+let shown = [];                    // stations in the table
+let current = null;                // station that is playing / loaded
+let favorites = store.get("favorites", []);
+let viewingFavs = false;
+let playing = false;
+let activeEl = null;               // the <audio> element in use
+
+const isFav = s => favorites.some(f => f.url === s.url);
+
+// ---------- radio-browser ----------
+async function api(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+function toStation(r) {
+  return {
+    name: (r.name || "").trim() || "(unnamed)",
+    url: r.url_resolved || r.url,
+    country: r.country || "", state: r.state || "",
+    tags: r.tags || "", codec: r.codec || "", bitrate: r.bitrate || 0,
+    logo: r.favicon || "", uuid: r.stationuuid || "",
+  };
+}
+
+async function loadCountries() {
+  try {
+    const list = (await api("/countries?order=name&hidebroken=true")).filter(c => c.stationcount >= 5);
+    const sel = $("country");
+    for (const c of list) {
+      const o = document.createElement("option");
+      o.value = c.iso_3166_1; o.textContent = c.name + " (" + c.stationcount + ")";
+      sel.appendChild(o);
+    }
+    const saved = store.get("country", "");
+    if (saved) sel.value = saved;
+  } catch { /* the search still works without the list */ }
+}
+
+let searchSeq = 0;
+async function runSearch() {
+  viewingFavs = false; $("favs").textContent = "My favorites";
+  const mine = ++searchSeq;
+  const p = new URLSearchParams({ limit: "150", order: "clickcount", reverse: "true", hidebroken: "true" });
+  if ($("q").value.trim()) p.set("name", $("q").value.trim());
+  if ($("country").value) p.set("countrycode", $("country").value);
+  if ($("tag").value.trim()) p.set("tag", $("tag").value.trim());
+  store.set("country", $("country").value);
+  $("listStatus").textContent = "Searching...";
+  try {
+    let list = (await api("/stations/search?" + p)).map(toStation).filter(s => s.url);
+    // an https page can't play plain http streams, so hide them there
+    if (location.protocol === "https:") list = list.filter(s => s.url.startsWith("https:"));
+    if (mine !== searchSeq) return;
+    showList(list, list.length ? list.length + " stations, most popular first. Click one to play." : "Nothing found.");
+  } catch (e) {
+    if (mine === searchSeq) $("listStatus").textContent = "Search failed: " + e.message;
+  }
+}
+
+// ---------- table ----------
+function showList(list, status) {
+  shown = list;
+  const rows = $("rows"); rows.textContent = "";
+  list.forEach((s, i) => {
+    const tr = document.createElement("tr");
+    tr.className = "row" + (current && current.url === s.url ? " sel" : "");
+    tr.dataset.i = i;
+    const star = document.createElement("td");
+    star.className = "star" + (isFav(s) ? " on" : ""); star.textContent = isFav(s) ? "★" : "☆";
+    star.title = "Add / remove favorite"; star.dataset.star = "1";
+    tr.appendChild(star);
+    const cells = [s.name, s.state, (s.tags || "").split(",").slice(0, 3).join(", "),
+                   [s.codec, s.bitrate ? s.bitrate + "k" : ""].filter(Boolean).join(" "), s.country];
+    cells.forEach((t, k) => {
+      const td = document.createElement("td"); td.textContent = t;
+      if (k === 1 || k === 2 || k === 3) td.className = "hide-s";
+      tr.appendChild(td);
+    });
+    rows.appendChild(tr);
+  });
+  $("listStatus").textContent = status;
+}
+
+$("rows").addEventListener("click", e => {
+  const tr = e.target.closest("tr.row"); if (!tr) return;
+  const s = shown[+tr.dataset.i];
+  if (e.target.dataset.star) { toggleFav(s); return; }
+  play(s);
+});
+
+function markSelected() {
+  document.querySelectorAll("#rows tr.row").forEach((tr, i) =>
+    tr.classList.toggle("sel", !!current && shown[i].url === current.url));
+}
+
+function refreshStars() {
+  document.querySelectorAll("#rows tr.row").forEach((tr, i) => {
+    const td = tr.firstChild, on = isFav(shown[i]);
+    td.classList.toggle("on", on); td.textContent = on ? "★" : "☆";
+  });
+  const on = current && isFav(current);
+  $("fav").textContent = on ? "★ Favorite" : "☆ Favorite";
+  $("fav").classList.toggle("on", !!on);
+  $("fav").title = on ? "Remove from favorites" : "Add the playing station to your favorites";
+}
+
+// ---------- favorites ----------
+function toggleFav(s) {
+  if (!s) return;
+  if (isFav(s)) favorites = favorites.filter(f => f.url !== s.url); else favorites.push(s);
+  store.set("favorites", favorites);
+  if (viewingFavs) showFavorites(); else refreshStars();
+  refreshStars();
+}
+function showFavorites() {
+  viewingFavs = true; $("favs").textContent = "Back to search";
+  showList(favorites.slice(), favorites.length ? favorites.length + " favorites." : "No favorites yet. Click the star next to a station.");
+}
+$("favs").onclick = () => viewingFavs ? runSearch() : showFavorites();
+$("fav").onclick = () => toggleFav(current);
+
+// ---------- playback ----------
+const aViz = $("aViz"), aPlain = $("aPlain");
+let ctx, analyser, vizReady = false, vizOk = false;
+
+function setupAudioGraph() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0;
+  ctx.createMediaElementSource(aViz).connect(analyser);
+  analyser.connect(ctx.destination);
+  vizReady = true;
+}
+
+let tryToken = 0;
+function play(s) {
+  current = s; playing = true;
+  const token = ++tryToken;
+  setupAudioGraph();
+  if (ctx.state === "suspended") ctx.resume();
+  stopEls();
+  vizOk = false;
+  $("name").textContent = s.name;
+  $("sub").textContent = [s.country, (s.tags || "").split(",").slice(0, 3).join(", ")].filter(Boolean).join("  ·  ");
+  setLogo(s.logo);
+  $("status").textContent = "Connecting...";
+  $("play").textContent = "Pause";
+  markSelected(); refreshStars(); setMediaSession(s);
+  store.set("last", s);
+  if (s.uuid) fetch(API + "/url/" + s.uuid).catch(() => {});   // lets radio-browser rank popular stations
+
+  // first try the element wired to the spectrum; if the station doesn't allow that, play it plainly
+  const fallback = () => {
+    if (token !== tryToken) return;
+    aViz.removeAttribute("src"); aViz.load();
+    activeEl = aPlain; aPlain.volume = +$("vol").value; aPlain.src = s.url;
+    aPlain.play().catch(() => failed(token));
+    note("This station doesn't allow a spectrum in the browser.");
+  };
+  activeEl = aViz; aViz.volume = +$("vol").value; aViz.src = s.url;
+  aViz.onerror = fallback;
+  aViz.play().then(() => { if (token === tryToken) { vizOk = true; note(""); } }).catch(() => fallback());
+  aPlain.onerror = () => failed(token);
+}
+
+function failed(token) {
+  if (token !== tryToken) return;
+  playing = false; $("play").textContent = "Play";
+  $("status").textContent = "Can't play this station" + (location.protocol === "https:" ? "." : " (it may need a different format or be offline).");
+}
+
+for (const el of [aViz, aPlain]) {
+  el.addEventListener("playing", () => { if (el === activeEl) $("status").textContent = "Playing"; });
+  el.addEventListener("waiting", () => { if (el === activeEl && playing) $("status").textContent = "Buffering..."; });
+}
+
+function stopEls() {
+  for (const el of [aViz, aPlain]) { el.onerror = null; el.pause(); }
+  aViz.removeAttribute("src"); aPlain.removeAttribute("src"); aViz.load(); aPlain.load();
+}
+
+function togglePlay() {
+  if (playing) { stopEls(); playing = false; tryToken++; $("play").textContent = "Play"; $("status").textContent = "Stopped"; }
+  else if (current) play(current);
+}
+$("play").onclick = togglePlay;
+
+function step(d) {
+  if (!shown.length) return;
+  let i = current ? shown.findIndex(s => s.url === current.url) : -1;
+  i = i < 0 ? (d > 0 ? 0 : shown.length - 1) : (i + d + shown.length) % shown.length;
+  play(shown[i]); scrollToCurrent();
+}
+function random() {
+  if (!shown.length) return;
+  let s;
+  do s = shown[Math.floor(Math.random() * shown.length)]; while (shown.length > 1 && current && s.url === current.url);
+  play(s); scrollToCurrent();
+}
+function scrollToCurrent() { const r = document.querySelector("#rows tr.sel"); if (r) r.scrollIntoView({ block: "nearest" }); }
+$("prev").onclick = () => step(-1); $("next").onclick = () => step(1); $("rand").onclick = random;
+
+$("vol").value = store.get("volume", 0.7);
+$("vol").oninput = () => { aViz.volume = aPlain.volume = +$("vol").value; store.set("volume", +$("vol").value); };
+
+function setLogo(url) {
+  const el = $("logo");
+  el.style.backgroundImage = ""; el.textContent = "♪";
+  if (!url) return;
+  const img = new Image();
+  img.onload = () => { if (current && current.logo === url) { el.style.backgroundImage = "url(" + JSON.stringify(url) + ")"; el.textContent = ""; } };
+  img.src = url;
+}
+
+function setMediaSession(s) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({ title: s.name, artist: s.country || "Stillwave",
+    artwork: s.logo ? [{ src: s.logo }] : [] });
+  const h = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch {} };
+  h("play", togglePlay); h("pause", togglePlay);
+  h("nexttrack", () => step(1)); h("previoustrack", () => step(-1));
+}
+
+// ---------- add your own station ----------
+const dlg = $("addDlg");
+$("add").onclick = () => { $("addUrl").value = $("addName").value = $("addMsg").textContent = ""; dlg.showModal(); $("addUrl").focus(); };
+function parsePlaylist(text) {
+  const out = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const m = /^File\d+=(https?:\/\/.+)$/i.exec(line);
+    if (m) out.push(m[1]); else if (/^https?:\/\//i.test(line)) out.push(line);
+  }
+  return out;
+}
+$("addGo").onclick = async () => {
+  let url = $("addUrl").value.trim(), msg = $("addMsg");
+  if (!/^https?:\/\//i.test(url)) { msg.textContent = "Paste a full link that starts with http:// or https://"; return; }
+  msg.textContent = "Checking the link...";
+  if (/\.(pls|m3u8?)(\?|$)/i.test(url)) {
+    try {
+      const list = parsePlaylist(await (await fetch(url)).text());
+      if (!list.length) { msg.textContent = "That playlist has no stream links in it."; return; }
+      url = list[0];
+    } catch { msg.textContent = "The browser couldn't read that playlist (the site blocks it). Paste the stream link inside it instead."; return; }
+  }
+  if (location.protocol === "https:" && url.startsWith("http:")) { msg.textContent = "This page is https, so the browser blocks plain http streams. Use an https link."; return; }
+  let name = $("addName").value.trim();
+  if (!name) { try { name = new URL(url).host; } catch { name = url; } }
+  if (!favorites.some(f => f.url === url)) favorites.push({ name, url, country: "", state: "", tags: "", codec: "", bitrate: 0, logo: "", uuid: "" });
+  store.set("favorites", favorites);
+  dlg.close(); showFavorites();
+  $("listStatus").textContent = `Added "${name}" to My favorites.`;
+};
+
+// ---------- spectrum ----------
+const canvas = $("canvas"), g = canvas.getContext("2d");
+const STYLES = ["Bars", "Mirrored", "Wave"];
+const THEMES = { Ocean: [190, 230], Fire: [0, 50], Orchid: [270, 320], Matrix: [110, 140], Ice: [180, 210] };
+let styleIdx = store.get("style", 0) % STYLES.length;
+const themeNames = Object.keys(THEMES);
+let themeIdx = store.get("theme", 0) % themeNames.length;
+const BANDS = 48;
+const bands = new Float32Array(BANDS);
+let freq;
+
+function note(t) { $("specNote").textContent = t; }
+
+function resize() {
+  const r = canvas.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, r.width * d); canvas.height = Math.max(1, r.height * d);
+}
+window.addEventListener("resize", resize); resize();
+
+$("spec").onclick = e => {
+  if (e.shiftKey) { themeIdx = (themeIdx + 1) % themeNames.length; store.set("theme", themeIdx); }
+  else { styleIdx = (styleIdx + 1) % STYLES.length; store.set("style", styleIdx); }
+};
+$("spec").title = "Click to change the style, Shift+click to change the colors";
+
+function color(t, a = 1) {
+  const [h0, h1] = THEMES[themeNames[themeIdx]];
+  return `hsla(${h0 + (h1 - h0) * t}, 85%, ${50 + 15 * t}%, ${a})`;
+}
+
+function frame() {
+  requestAnimationFrame(frame);
+  const W = canvas.width, H = canvas.height;
+  g.clearRect(0, 0, W, H);
+
+  // log-spaced bands from 40 Hz to 16 kHz, dB scaled
+  const live = vizReady && vizOk && playing && ctx.state === "running";
+  if (live) {
+    freq = freq || new Float32Array(analyser.frequencyBinCount);
+    analyser.getFloatFrequencyData(freq);
+    const hz = ctx.sampleRate / analyser.fftSize;
+    for (let b = 0; b < BANDS; b++) {
+      const lo = 40 * Math.pow(400, b / BANDS), hi = 40 * Math.pow(400, (b + 1) / BANDS);
+      let i0 = Math.max(1, Math.floor(lo / hz)), i1 = Math.max(i0 + 1, Math.ceil(hi / hz)), m = -140;
+      for (let i = i0; i < i1 && i < freq.length; i++) if (freq[i] > m) m = freq[i];
+      const v = Math.min(1, Math.max(0, (m + 80) / 70));
+      bands[b] = v > bands[b] ? bands[b] * 0.4 + v * 0.6 : bands[b] * 0.88 + v * 0.12;
+    }
+  } else {
+    for (let b = 0; b < BANDS; b++) bands[b] *= 0.9;
+  }
+
+  const gap = Math.max(1, W / BANDS * 0.18), bw = W / BANDS - gap;
+  if (STYLES[styleIdx] === "Wave") {
+    g.beginPath();
+    for (let b = 0; b < BANDS; b++) {
+      const x = (b + 0.5) * W / BANDS, y = H - bands[b] * H * 0.95 - 2;
+      b ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.lineWidth = 2 * (window.devicePixelRatio || 1);
+    const grad = g.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, color(0)); grad.addColorStop(1, color(1));
+    g.strokeStyle = grad; g.stroke();
+    g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fillStyle = color(0.5, 0.18); g.fill();
+    return;
+  }
+  for (let b = 0; b < BANDS; b++) {
+    const h = Math.max(2, bands[b] * H * 0.95), x = b * W / BANDS + gap / 2;
+    g.fillStyle = color(b / BANDS);
+    if (STYLES[styleIdx] === "Mirrored") g.fillRect(x, (H - h) / 2, bw, h);
+    else g.fillRect(x, H - h, bw, h);
+  }
+}
+requestAnimationFrame(frame);
+
+// ---------- wiring ----------
+$("search").onclick = runSearch;
+for (const id of ["q", "tag"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+$("country").onchange = runSearch;
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && !/INPUT|SELECT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
+});
+
+// show the last station (without starting it; browsers need a click first)
+const last = store.get("last", null);
+if (last) {
+  current = last; $("name").textContent = last.name;
+  $("sub").textContent = [last.country, (last.tags || "").split(",").slice(0, 3).join(", ")].filter(Boolean).join("  ·  ");
+  setLogo(last.logo); $("status").textContent = "Press Play to resume";
+}
+loadCountries().then(runSearch);
+</script>
+</body>
+</html>

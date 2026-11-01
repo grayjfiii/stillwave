@@ -1,0 +1,179 @@
+﻿<Window x:Class="Stillwave.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Stillwave" Icon="Stillwave.ico" Width="1000" Height="640" MinWidth="640" MinHeight="420"
+        WindowStartupLocation="CenterScreen" Background="#1b1f27">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Background" Value="#2f3745"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderBrush" Value="#3a4252"/>
+      <Setter Property="Padding" Value="12,6"/>
+      <Setter Property="Margin" Value="0,0,6,0"/>
+    </Style>
+    <Style TargetType="ListViewItem">
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListViewItem">
+            <Border x:Name="Bd" Background="Transparent" Padding="2,3">
+              <GridViewRowPresenter Content="{TemplateBinding Content}" Columns="{TemplateBinding GridView.ColumnCollection}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#2d3646"/>
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#2f6fb5"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Background" Value="#262c37"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderBrush" Value="#3a4252"/>
+      <Setter Property="Padding" Value="5,4"/>
+      <Setter Property="CaretBrush" Value="White"/>
+    </Style>
+  </Window.Resources>
+  <Grid Margin="16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition x:Name="ResultsRow" Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- now playing and transport -->
+    <Grid x:Name="HeaderGrid" Grid.Row="0" Margin="0,0,0,14" MinHeight="114">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      <Border Grid.Column="0" Grid.RowSpan="2" Width="96" Height="96" CornerRadius="6" Background="#262c37" Margin="0,0,14,0" VerticalAlignment="Top" ClipToBounds="True">
+        <Image x:Name="ArtImage" Stretch="UniformToFill"/>
+      </Border>
+      <StackPanel x:Name="NowText" Grid.Column="1" Margin="0,0,16,0" VerticalAlignment="Center">
+        <TextBlock x:Name="NowName" Text="Pick a station" FontSize="22" FontWeight="SemiBold" Foreground="White" TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="NowTitle" Text="" FontSize="16" Foreground="#cfe0f2" TextTrimming="CharacterEllipsis" Margin="0,3,0,0"/>
+        <TextBlock x:Name="NowArtist" Text="" FontSize="13" Foreground="#9fb3c8" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+        <TextBlock x:Name="NowSub" Text="" FontSize="13" Foreground="#9fb3c8" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+        <TextBlock x:Name="NowStatus" Text="" FontSize="12" Foreground="#6b7a8c" Margin="0,2,0,0"/>
+      </StackPanel>
+      <StackPanel x:Name="Transport" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+        <Button x:Name="PrevBtn" Content="Prev" Click="Prev_Click"/>
+        <Button x:Name="PlayBtn" Content="Play" MinWidth="64" Click="PlayStop_Click"/>
+        <Button x:Name="NextBtn" Content="Next" Click="Next_Click"/>
+        <Button x:Name="RandBtn" Content="Random" Click="Random_Click" ToolTip="Play a random station from the list below"/>
+        <Button x:Name="MiniBtn" Content="Mini" Click="Mini_Click" ToolTip="Small always-on-top player"/>
+        <Button x:Name="SaveBtn" Content="&#x2606; Favorite" MinWidth="96" Click="Save_Click" ToolTip="Add the playing station to your favorites (click again to remove it)"/>
+        <TextBlock Text="Vol" Foreground="#9fb3c8" VerticalAlignment="Center" Margin="8,0,6,0"/>
+        <Slider x:Name="VolSlider" Width="110" Minimum="0" Maximum="1" Value="0.7" VerticalAlignment="Center" ValueChanged="Vol_Changed"/>
+      </StackPanel>
+      <!-- about the artist, when we can find them -->
+      <Border x:Name="ArtistBox" Grid.Row="1" Grid.Column="2" Margin="0,8,0,0" Visibility="Collapsed" Cursor="Hand"
+              Width="{Binding ActualWidth, ElementName=Transport}" HorizontalAlignment="Left" VerticalAlignment="Top"
+              ToolTip="Click to read more on Wikipedia" MouseLeftButtonUp="Artist_Click">
+        <StackPanel>
+          <TextBlock TextTrimming="CharacterEllipsis"><Run x:Name="ArtistName" FontWeight="SemiBold" Foreground="White" FontSize="13"/><Run x:Name="ArtistMeta" Foreground="#9fb3c8" FontSize="12"/></TextBlock>
+          <TextBlock x:Name="ArtistBio" FontSize="12" Foreground="#b8c6d6" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="50" Margin="0,2,0,0"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- spectrum -->
+    <Border x:Name="SpecBox" Grid.Row="1" Height="54" Margin="0,0,0,12" CornerRadius="6" Background="#171b22" ClipToBounds="True"
+            ToolTip="Click to change the style. Right-click for more options." MouseLeftButtonUp="Spec_Click">
+      <Canvas x:Name="SpecCanvas" Margin="6,4"/>
+    </Border>
+
+    <!-- filters -->
+    <Grid x:Name="FilterGrid" Grid.Row="2" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="2*"/>
+        <ColumnDefinition Width="2*"/>
+        <ColumnDefinition Width="1.5*"/>
+        <ColumnDefinition Width="1.5*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" Margin="0,0,8,0">
+        <TextBlock Text="Source" Foreground="#9fb3c8" FontSize="12"/>
+        <ComboBox x:Name="SourceBox" Width="150" SelectedIndex="0" SelectionChanged="Source_Changed"
+                  ToolTip="Where to look: the station directory, Radio Garden, the Internet Archive (old radio shows and concerts) or podcasts">
+          <ComboBoxItem Content="Radio stations"/>
+          <ComboBoxItem Content="Radio Garden"/>
+          <ComboBoxItem Content="Old radio &amp; concerts"/>
+          <ComboBoxItem Content="Podcasts"/>
+        </ComboBox>
+      </StackPanel>
+      <StackPanel Grid.Column="1" Margin="0,0,8,0">
+        <TextBlock Text="Name" Foreground="#9fb3c8" FontSize="12"/>
+        <TextBox x:Name="NameBox" KeyDown="NameBox_KeyDown"/>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Margin="0,0,8,0">
+        <TextBlock Text="Country" Foreground="#9fb3c8" FontSize="12"/>
+        <ComboBox x:Name="CountryBox" DisplayMemberPath="Display" SelectionChanged="Country_Changed"/>
+      </StackPanel>
+      <StackPanel Grid.Column="3" Margin="0,0,8,0">
+        <TextBlock Text="State / region" Foreground="#9fb3c8" FontSize="12"/>
+        <ComboBox x:Name="StateBox" IsEditable="True" KeyDown="NameBox_KeyDown" SelectionChanged="Filter_Changed"/>
+      </StackPanel>
+      <StackPanel Grid.Column="4" Margin="0,0,8,0">
+        <TextBlock x:Name="GenreLabel" Text="Genre" Foreground="#9fb3c8" FontSize="12"/>
+        <ComboBox x:Name="GenreBox" IsEditable="True" KeyDown="NameBox_KeyDown" SelectionChanged="Filter_Changed"/>
+      </StackPanel>
+      <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Bottom">
+        <Button Content="Search" Click="Search_Click"/>
+        <Button Content="Clear" Click="Clear_Click" ToolTip="Reset the name, state and genre filters (the country stays)"/>
+        <Button x:Name="FavBtn" Content="My favorites" Margin="0" Click="Favs_Click"/>
+      </StackPanel>
+    </Grid>
+
+    <!-- results -->
+    <ListView x:Name="Results" Grid.Row="3" Background="#232933" Foreground="White" BorderBrush="#3a4252"
+              MouseDoubleClick="Results_DoubleClick" KeyDown="Results_KeyDown" PreviewMouseRightButtonDown="Results_RightDown">
+      <ListView.ContextMenu>
+        <ContextMenu>
+          <MenuItem Header="Play" Click="Ctx_Play"/>
+          <MenuItem x:Name="CtxFav" Header="Add to favorites" Click="Ctx_Fav"/>
+        </ContextMenu>
+      </ListView.ContextMenu>
+      <ListView.View>
+        <GridView>
+          <GridViewColumn Header="Station" Width="240" DisplayMemberBinding="{Binding DisplayName}"/>
+          <GridViewColumn Header="Now playing" Width="262" DisplayMemberBinding="{Binding NowPlaying}"/>
+          <GridViewColumn Header="State" Width="90" DisplayMemberBinding="{Binding State}"/>
+          <GridViewColumn Header="Genres" Width="140" DisplayMemberBinding="{Binding TagsShort}"/>
+          <GridViewColumn Header="Stream" Width="75" DisplayMemberBinding="{Binding Info}"/>
+          <GridViewColumn Header="Country" Width="110" DisplayMemberBinding="{Binding CountryShort}"/>
+        </GridView>
+      </ListView.View>
+    </ListView>
+
+    <Grid x:Name="StatusGrid" Grid.Row="4" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" Orientation="Horizontal">
+        <Button x:Name="BackBtn" Content="&#x25C0; Back" Visibility="Collapsed" Click="Back_Click" ToolTip="Back to the previous list (Backspace)"/>
+        <Button x:Name="PlaceBtn" Content="&#x1F30D; Random place" Visibility="Collapsed" Click="Place_Click" ToolTip="Jump to a random place on the map"/>
+      </StackPanel>
+      <TextBlock x:Name="ListStatus" Grid.Column="1" Foreground="#6b7a8c" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+      <StackPanel Grid.Column="2" Orientation="Horizontal">
+        <Button Content="+ Add station..." Click="AddStation_Click" Margin="12,0,0,0" ToolTip="Add your own stream link, or import an M3U / PLS playlist"/>
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>
