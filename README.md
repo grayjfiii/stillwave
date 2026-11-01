@@ -2,6 +2,8 @@
 
 A small internet radio player for background listening while you work. It comes in two versions:
 
+**[Open the web player](https://grayjfiii.github.io/stillwave/)** (no install, any browser) or **[download the Windows app](https://github.com/grayjfiii/stillwave/releases/latest)**.
+
 | | Windows app | Web version |
 |---|---|---|
 | Runs on | Windows 10 / 11 | Any modern browser (Windows, Mac, Linux, phone) |
@@ -15,7 +17,7 @@ A small internet radio player for background listening while you work. It comes 
 
 ## Web version
 
-Open `docs/index.html` in a browser, or host the `docs` folder on GitHub Pages (Settings, Pages, deploy from branch, `/docs`). Favorites are stored in your browser.
+Use it online at https://grayjfiii.github.io/stillwave/, open `docs/index.html` in a browser, or host the `docs` folder on GitHub Pages (Settings, Pages, deploy from branch, `/docs`). Favorites are stored in your browser.
 
 Notes: on an https page, browsers block plain `http` streams, so those stations are hidden there. Some stations don't allow the spectrum in a browser; they still play.
 
