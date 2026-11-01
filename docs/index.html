@@ -126,7 +126,7 @@
 
 <div id="foot">
   <span id="listStatus"></span>
-  <span><a id="winapp" href="https://github.com/grayjfiii/stillwave/releases/latest" target="_blank" rel="noopener"
+  <span><a id="winapp" hidden href="https://github.com/grayjfiii/stillwave/releases/latest" target="_blank" rel="noopener"
            title="Song titles on every station, artist info, a spectrum of whatever your PC plays, and a mini player">Get the Windows app</a>
         <button id="add" style="margin-left:10px">+ Add station...</button></span>
 </div>
@@ -631,6 +631,9 @@ $("state").onchange = runSearch;
 document.addEventListener("keydown", e => {
   if (e.code === "Space" && !/INPUT|SELECT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
 });
+
+// the Windows app link is only useful on Windows
+if (/Windows/i.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.userAgent || "")) $("winapp").hidden = false;
 
 // show the last station (without starting it; browsers need a click first)
 const last = store.get("last", null);
