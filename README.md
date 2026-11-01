@@ -11,7 +11,8 @@ A small internet radio player for background listening while you work. It comes 
 | Station search (~60,000 via [radio-browser.info](https://www.radio-browser.info/)) | yes | yes |
 | Favorites, Random, Add your own stream | yes | yes |
 | Live spectrum | whatever your PC is playing | the station's own audio, only where the station allows it |
-| Song title, album art, artist profile | yes | no (browsers can't read most stream metadata) |
+| Song title | yes | only on stations that let a browser read it (roughly 1 in 5) |
+| Album art, artist profile | yes | no |
 | Radio Garden, Internet Archive, podcasts | yes | no |
 | Mini always-on-top mode, taskbar controls | yes | no |
 

@@ -27,7 +27,9 @@
           display: grid; place-items: center; font-size: 34px; color: var(--dim); overflow: hidden; }
   #text { flex: 1; min-width: 200px; }
   #name { font-size: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #sub { color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #song { font-size: 16px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #song:empty { display: none; }
+  #sub { color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status { color: var(--dim); font-size: 12px; min-height: 17px; }
   #transport { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   #vol { width: 110px; padding: 0; accent-color: var(--accent); }
@@ -80,6 +82,7 @@
   <div id="logo">♪</div>
   <div id="text">
     <div id="name">Pick a station</div>
+    <div id="song" aria-live="polite"></div>
     <div id="sub"></div>
     <div id="status"></div>
   </div>
@@ -381,6 +384,7 @@ function play(s) {
   $("name").textContent = s.name;
   $("sub").textContent = [s.country, (s.tags || "").split(",").slice(0, 3).join(", ")].filter(Boolean).join("  ·  ");
   setLogo(s.logo);
+  stopSong(); songLoop(s);
   $("status").textContent = "Connecting...";
   $("play").textContent = "Pause";
   markSelected(); refreshStars(); setMediaSession(s);
@@ -403,7 +407,7 @@ function play(s) {
 
 function failed(token) {
   if (token !== tryToken) return;
-  playing = false; $("play").textContent = "Play";
+  playing = false; $("play").textContent = "Play"; stopSong();
   $("status").textContent = "Can't play this station" + (location.protocol === "https:" ? "." : " (it may need a different format or be offline).");
 }
 
@@ -418,7 +422,7 @@ function stopEls() {
 }
 
 function togglePlay() {
-  if (playing) { stopEls(); playing = false; tryToken++; $("play").textContent = "Play"; $("status").textContent = "Stopped"; }
+  if (playing) { stopEls(); playing = false; tryToken++; stopSong(); $("play").textContent = "Play"; $("status").textContent = "Stopped"; }
   else if (current) play(current);
 }
 $("play").onclick = togglePlay;
@@ -450,10 +454,58 @@ function setLogo(url) {
   img.src = url;
 }
 
-function setMediaSession(s) {
+// ---------- song title ----------
+// Some stations let a web page read the song title that is sent along with the stream (ICY metadata).
+// Most don't, and then nothing is shown. The check opens a second, short connection every 20 seconds.
+let songToken = 0;
+
+function stopSong() { songToken++; $("song").textContent = ""; $("song").title = ""; }
+
+function setSong(t, s) {
+  t = (t || "").trim();
+  if (t === s.name) t = "";
+  $("song").textContent = t; $("song").title = t;
+  setMediaSession(s, t);
+}
+
+async function readIcyTitle(url, signal) {
+  const r = await fetch(url, { headers: { "Icy-MetaData": "1" }, signal });
+  const every = +r.headers.get("icy-metaint");
+  if (!every) return null;
+  const reader = r.body.getReader();
+  let buf = new Uint8Array(0), need = every + 1;
+  while (buf.length < need) {
+    const { value, done } = await reader.read();
+    if (done) return null;
+    const next = new Uint8Array(buf.length + value.length); next.set(buf); next.set(value, buf.length); buf = next;
+    if (buf.length >= every + 1) need = every + 1 + buf[every] * 16;
+  }
+  const raw = buf.subarray(every + 1, need);
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(raw); } catch { text = new TextDecoder("windows-1252").decode(raw); }
+  const m = /StreamTitle='(.*?)';/s.exec(text);
+  return m ? m[1] : "";
+}
+
+async function songLoop(s) {
+  const token = ++songToken;
+  while (token === songToken && playing) {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000);
+    let title = null;
+    try { title = await readIcyTitle(s.url, ctl.signal); } catch { title = null; }
+    clearTimeout(to); ctl.abort();
+    if (token !== songToken) return;
+    if (title === null) return;   // the station doesn't allow it, so stop asking
+    setSong(title, s);
+    await new Promise(r => setTimeout(r, 20000));
+  }
+}
+
+function setMediaSession(s, song) {
   if (!("mediaSession" in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: s.name, artist: s.country || "Stillwave",
-    artwork: s.logo ? [{ src: s.logo }] : [] });
+  let title = s.name, artist = s.country || "Stillwave";
+  if (song) { const i = song.indexOf(" - "); if (i > 0) { artist = song.slice(0, i); title = song.slice(i + 3); } else { title = song; artist = s.name; } }
+  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, artwork: s.logo ? [{ src: s.logo }] : [] });
   const h = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch {} };
   h("play", togglePlay); h("pause", togglePlay);
   h("nexttrack", () => step(1)); h("previoustrack", () => step(-1));
