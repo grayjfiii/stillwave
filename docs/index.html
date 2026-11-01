@@ -39,7 +39,7 @@
   #specNote { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 12px; pointer-events: none; }
 
   /* filters */
-  #filters { display: grid; grid-template-columns: 1.4fr 1.4fr 1fr auto; gap: 8px; align-items: end; }
+  #filters { display: grid; grid-template-columns: 1.3fr 1.3fr 1fr 1fr auto; gap: 8px; align-items: end; }
   #filters label { color: var(--mute); font-size: 12px; display: block; }
   #filters .btns { display: flex; gap: 6px; }
 
@@ -103,10 +103,11 @@
 <div id="filters">
   <div><label for="q">Name</label><input id="q" placeholder="e.g. jazz, BBC, Radio Paradise"></div>
   <div><label for="country">Country</label><select id="country"><option value="">Any country</option></select></div>
+  <div><label for="state">State / region</label><select id="state" disabled><option value="">Any state</option></select></div>
   <div><label for="tag">Genre</label><select id="tag"><option value="">Any genre</option></select></div>
   <div class="btns">
     <button id="search">Search</button>
-    <button id="clear" title="Reset the name and genre (the country stays)">Clear</button>
+    <button id="clear" title="Reset the name, state and genre (the country stays)">Clear</button>
     <button id="favs">My favorites</button>
   </div>
 </div>
@@ -180,12 +181,31 @@ async function loadCountries() {
     const sel = $("country");
     for (const c of list) {
       const o = document.createElement("option");
-      o.value = c.iso_3166_1; o.textContent = c.name + " (" + c.stationcount + ")";
+      o.value = c.iso_3166_1; o.textContent = c.name + " (" + c.stationcount + ")"; o.dataset.name = c.name;
       sel.appendChild(o);
     }
     const saved = store.get("country", "US");   // US the first time; after that the last choice, "Any" included
     if (saved) sel.value = saved;
   } catch { /* the search still works without the list */ }
+}
+
+const US_STATES = new Set(("Alabama,Alaska,Arizona,Arkansas,California,Colorado,Connecticut,Delaware,Florida,Georgia,Hawaii,Idaho,Illinois,Indiana,Iowa,Kansas,Kentucky,Louisiana,Maine,Maryland,Massachusetts,Michigan,Minnesota,Mississippi,Missouri,Montana,Nebraska,Nevada,New Hampshire,New Jersey,New Mexico,New York,North Carolina,North Dakota,Ohio,Oklahoma,Oregon,Pennsylvania,Rhode Island,South Carolina,South Dakota,Tennessee,Texas,Utah,Vermont,Virginia,Washington,West Virginia,Wisconsin,Wyoming,District of Columbia").split(","));
+
+// states / regions of the chosen country (the directory wants the country's full name here)
+async function loadStates() {
+  const sel = $("state"), opt = $("country").selectedOptions[0];
+  sel.textContent = ""; sel.add(new Option("Any state", ""));
+  sel.disabled = true;
+  if (!opt || !opt.dataset.name) return;
+  try {
+    const list = await api("/states/" + encodeURIComponent(opt.dataset.name) + "/?hidebroken=true&order=stationcount&reverse=true&limit=400");
+    if ($("country").selectedOptions[0] !== opt) return;   // the country changed while this was loading
+    const us = $("country").value === "US";   // US entries are full of cities and abbreviations, so keep only the real states
+    const names = list.filter(s => s.stationcount >= (us ? 1 : 8) && (us ? US_STATES.has(s.name) : /^[\p{L}\p{N} .,'&()-]{2,40}$/u.test(s.name) && s.name === s.name.trim()))
+                      .map(s => s.name).sort((a, b) => a.localeCompare(b));
+    for (const n of names) sel.add(new Option(n, n));
+    sel.disabled = names.length === 0;
+  } catch { /* searching without a state still works */ }
 }
 
 async function loadTags() {
@@ -211,6 +231,7 @@ async function runSearch() {
   if (secure) p.set("is_https", "true");   // an https page can't play plain http streams, so ask only for https ones
   if ($("q").value.trim()) p.set("name", $("q").value.trim());
   if ($("country").value) p.set("countrycode", $("country").value);
+  if ($("state").value) { p.set("state", $("state").value); p.set("stateExact", "true"); }
   if ($("tag").value.trim()) p.set("tag", $("tag").value.trim());
   store.set("country", $("country").value);
   $("listStatus").textContent = "Searching...";
@@ -548,8 +569,9 @@ requestAnimationFrame(frame);
 $("search").onclick = runSearch;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
 $("tag").onchange = runSearch;
-$("clear").onclick = () => { $("q").value = ""; $("tag").value = ""; runSearch(); $("q").focus(); };
-$("country").onchange = runSearch;
+$("clear").onclick = () => { $("q").value = ""; $("tag").value = ""; $("state").value = ""; runSearch(); $("q").focus(); };
+$("country").onchange = async () => { await loadStates(); runSearch(); };
+$("state").onchange = runSearch;
 document.addEventListener("keydown", e => {
   if (e.code === "Space" && !/INPUT|SELECT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
 });
@@ -559,7 +581,7 @@ const last = store.get("last", null);
 if (last) showCurrent(last, "Press Play to resume");
 openShared();   // a shared link wins over the remembered station
 loadTags();
-loadCountries().then(runSearch);
+loadCountries().then(loadStates).then(runSearch);
 </script>
 </body>
 </html>
