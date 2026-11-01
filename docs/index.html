@@ -102,7 +102,7 @@
 <div id="filters">
   <div><label for="q">Name</label><input id="q" placeholder="e.g. jazz, BBC, Radio Paradise"></div>
   <div><label for="country">Country</label><select id="country"><option value="">Any country</option></select></div>
-  <div><label for="tag">Genre</label><input id="tag" placeholder="e.g. ambient"></div>
+  <div><label for="tag">Genre</label><select id="tag"><option value="">Any genre</option></select></div>
   <div class="btns">
     <button id="search">Search</button>
     <button id="favs">My favorites</button>
@@ -184,6 +184,20 @@ async function loadCountries() {
     const saved = store.get("country", "US");   // US the first time; after that the last choice, "Any" included
     if (saved) sel.value = saved;
   } catch { /* the search still works without the list */ }
+}
+
+async function loadTags() {
+  try {
+    const list = await api("/tags?order=stationcount&reverse=true&hidebroken=true&limit=250");
+    const names = list.filter(t => t.stationcount >= 30 && /^[\p{L}\p{N} &'+-]{2,30}$/u.test(t.name))
+                      .map(t => t.name).sort((a, b) => a.localeCompare(b));
+    const sel = $("tag");
+    for (const n of names) {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n.charAt(0).toUpperCase() + n.slice(1);
+      sel.appendChild(o);
+    }
+  } catch { /* searching by name still works */ }
 }
 
 let searchSeq = 0;
@@ -480,7 +494,8 @@ requestAnimationFrame(frame);
 
 // ---------- wiring ----------
 $("search").onclick = runSearch;
-for (const id of ["q", "tag"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") runSearch(); });
+$("tag").onchange = runSearch;
 $("country").onchange = runSearch;
 document.addEventListener("keydown", e => {
   if (e.code === "Space" && !/INPUT|SELECT|BUTTON|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
@@ -493,6 +508,7 @@ if (last) {
   $("sub").textContent = [last.country, (last.tags || "").split(",").slice(0, 3).join(", ")].filter(Boolean).join("  ·  ");
   setLogo(last.logo); $("status").textContent = "Press Play to resume";
 }
+loadTags();
 loadCountries().then(runSearch);
 </script>
 </body>
