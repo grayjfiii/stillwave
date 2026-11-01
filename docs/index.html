@@ -205,7 +205,9 @@ let searchSeq = 0;
 async function runSearch() {
   viewingFavs = false; $("favs").textContent = "My favorites";
   const mine = ++searchSeq;
-  const p = new URLSearchParams({ limit: "150", order: "clickcount", reverse: "true", hidebroken: "true" });
+  const secure = location.protocol === "https:";
+  const p = new URLSearchParams({ limit: secure ? "500" : "200", order: "clickcount", reverse: "true", hidebroken: "true" });
+  if (secure) p.set("is_https", "true");   // an https page can't play plain http streams, so ask only for https ones
   if ($("q").value.trim()) p.set("name", $("q").value.trim());
   if ($("country").value) p.set("countrycode", $("country").value);
   if ($("tag").value.trim()) p.set("tag", $("tag").value.trim());
@@ -213,8 +215,8 @@ async function runSearch() {
   $("listStatus").textContent = "Searching...";
   try {
     let list = (await api("/stations/search?" + p)).map(toStation).filter(s => s.url);
-    // an https page can't play plain http streams, so hide them there
-    if (location.protocol === "https:") list = list.filter(s => s.url.startsWith("https:"));
+    if (secure) list = list.filter(s => s.url.startsWith("https:"));   // in case the server ignored is_https
+    list = list.slice(0, 200);
     if (mine !== searchSeq) return;
     showList(list, list.length ? list.length + (list.length === 1 ? " station" : " stations") + ", most popular first. Click one to play." : "Nothing found.");
   } catch (e) {
