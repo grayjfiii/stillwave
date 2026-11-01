@@ -89,6 +89,7 @@
     <button id="next" title="Next station in the list">Next</button>
     <button id="rand" title="Play a random station from the list below">Random</button>
     <button id="fav" title="Add the playing station to your favorites">☆ Favorite</button>
+    <button id="share" title="Copy a link that opens this station">Share</button>
     <span style="color:var(--mute);margin-left:6px">Vol</span>
     <input id="vol" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="Volume">
   </div>
@@ -285,6 +286,54 @@ function showFavorites() {
 }
 $("favs").onclick = () => viewingFavs ? runSearch() : showFavorites();
 $("fav").onclick = () => toggleFav(current);
+
+// ---------- share ----------
+function shareLink(s) {
+  const base = location.origin + location.pathname;
+  return s.uuid ? base + "?s=" + encodeURIComponent(s.uuid)
+                : base + "?u=" + encodeURIComponent(s.url) + "&n=" + encodeURIComponent(s.name);
+}
+$("share").onclick = async () => {
+  if (!current) { $("status").textContent = "Pick a station to share first."; return; }
+  const link = shareLink(current);
+  try {
+    if (navigator.share && matchMedia("(pointer: coarse)").matches) { await navigator.share({ title: current.name, text: "Listen to " + current.name, url: link }); return; }
+    await navigator.clipboard.writeText(link);
+    $("status").textContent = "Link copied. Anyone who opens it gets " + current.name + ".";
+  } catch {
+    window.prompt("Copy this link:", link);   // clipboard blocked: let them copy it by hand
+  }
+};
+
+// show a station without starting it (browsers need a click before audio can play)
+function showCurrent(s, status) {
+  current = s; $("name").textContent = s.name;
+  $("sub").textContent = [s.country, (s.tags || "").split(",").slice(0, 3).join(", ")].filter(Boolean).join("  ·  ");
+  setLogo(s.logo); $("status").textContent = status;
+  markSelected(); refreshStars();
+}
+
+// a shared link: ?s=<station id> or ?u=<stream link>&n=<name>
+async function openShared() {
+  const q = new URLSearchParams(location.search);
+  try {
+    if (q.get("s")) {
+      const r = (await api("/stations/byuuid/" + encodeURIComponent(q.get("s"))))[0];
+      if (!r) return false;
+      const s = toStation(r);
+      if (location.protocol === "https:" && !s.url.startsWith("https:")) { showCurrent(s, "This station only streams over plain http, which this page can't play."); return true; }
+      showCurrent(s, "Shared with you. Press Play to listen."); return true;
+    }
+    if (q.get("u")) {
+      const u = q.get("u");
+      if (!/^https?:\/\//i.test(u)) return false;
+      showCurrent({ name: (q.get("n") || "").slice(0, 100) || new URL(u).host, url: u, country: "", state: "", tags: "", codec: "", bitrate: 0, logo: "", uuid: "" },
+                  "Shared with you. Press Play to listen.");
+      return true;
+    }
+  } catch { /* fall back to the normal start */ }
+  return false;
+}
 
 // ---------- playback ----------
 const aViz = $("aViz"), aPlain = $("aPlain");
@@ -507,11 +556,8 @@ document.addEventListener("keydown", e => {
 
 // show the last station (without starting it; browsers need a click first)
 const last = store.get("last", null);
-if (last) {
-  current = last; $("name").textContent = last.name;
-  $("sub").textContent = [last.country, (last.tags || "").split(",").slice(0, 3).join(", ")].filter(Boolean).join("  ·  ");
-  setLogo(last.logo); $("status").textContent = "Press Play to resume";
-}
+if (last) showCurrent(last, "Press Play to resume");
+openShared();   // a shared link wins over the remembered station
 loadTags();
 loadCountries().then(runSearch);
 </script>
