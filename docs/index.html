@@ -60,6 +60,8 @@
   td.star { width: 28px; text-align: center; color: var(--dim); max-width: 28px; }
   td.star:hover { color: #ffd34d; }
   td.star.on { color: #ffd34d; }
+  #winapp { color: var(--accent); text-decoration: none; }
+  #winapp:hover { text-decoration: underline; }
   #foot { display: flex; justify-content: space-between; gap: 12px; align-items: center; color: var(--dim); font-size: 12px; flex-wrap: wrap; }
 
   dialog { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 16px; width: min(480px, 92vw); }
@@ -124,7 +126,9 @@
 
 <div id="foot">
   <span id="listStatus"></span>
-  <span><button id="add">+ Add station...</button></span>
+  <span><a id="winapp" href="https://github.com/grayjfiii/stillwave/releases/latest" target="_blank" rel="noopener"
+           title="Song titles on every station, artist info, a spectrum of whatever your PC plays, and a mini player">Get the Windows app</a>
+        <button id="add" style="margin-left:10px">+ Add station...</button></span>
 </div>
 
 <dialog id="addDlg">
