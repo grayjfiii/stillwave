@@ -181,7 +181,7 @@ async function loadCountries() {
       o.value = c.iso_3166_1; o.textContent = c.name + " (" + c.stationcount + ")";
       sel.appendChild(o);
     }
-    const saved = store.get("country", "");
+    const saved = store.get("country", "US");   // US the first time; after that the last choice, "Any" included
     if (saved) sel.value = saved;
   } catch { /* the search still works without the list */ }
 }
